@@ -86,13 +86,25 @@ def versions_from_trove(trove):
         set([v for v in versions if v.replace('.', '', 1).isdigit()]))
 
 
+def github_metadata_extension(extraction_fce):
+    def inner(self, commit, **kwargs):
+        data = extraction_fce(self, **kwargs)
+        if commit is None:
+            logger.warning("Skipping git metadata extraction")
+            return data
+        version = f'{data.data["setup_version"]}.{commit[:7]}'
+        data.update_attr("version", version)
+        return data
+    return inner
+
+
 def pypi_metadata_extension(extraction_fce):
     """Extracts data from PyPI and merges them with data from extraction
     method.
     """
 
-    def inner(self, client=None):
-        data = extraction_fce(self)
+    def inner(self, client=None, **kwargs):
+        data = extraction_fce(self, **kwargs)
         if client is None:
             logger.warning("Client is None, it was probably disabled")
             data.update_attr('source0', self.archive.name)
@@ -126,8 +138,8 @@ def venv_metadata_extension(extraction_fce):
     from given extraction method.
     """
 
-    def inner(self):
-        data = extraction_fce(self)
+    def inner(self, **kwargs):
+        data = extraction_fce(self, **kwargs)
         if virtualenv is None or not self.venv:
             logger.debug("Skipping virtualenv metadata extraction.")
             return data
@@ -246,6 +258,7 @@ class LocalMetadataExtractor(object):
             return self.name_convertor.base_name(self.rpm_name or self.name)
 
     @pypi_metadata_extension
+    @github_metadata_extension
     @venv_metadata_extension
     def extract_data(self):
         """Extracts data from archive.
@@ -530,6 +543,7 @@ class SetupPyMetadataExtractor(LocalMetadataExtractor):
         archive_data['has_packages'] = self.has_packages
         archive_data['packages'] = self.packages
         archive_data['has_bundled_egg_info'] = self.has_bundled_egg_info
+        archive_data["setup_version"] = self.metadata["version"]
         sphinx_dir = self.sphinx_dir
         if sphinx_dir:
             archive_data['sphinx_dir'] = "/".join(sphinx_dir.split("/")[1:])

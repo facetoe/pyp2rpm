@@ -5,6 +5,9 @@ import subprocess
 import tempfile
 import shutil
 import re
+
+from pyp2rpm.utils import ChangeDir
+
 try:
     import urllib.request as request
 except ImportError:
@@ -242,3 +245,49 @@ class LocalFileGetter(PackageGetter):
     @property
     def name(self):
         return self.get_name_version()[0]
+
+
+class GitPackageGetter(PackageGetter):
+    def __init__(self, url, commit, save_dir=None):
+        self.url = url
+        self.commit = commit
+        self.project = self.url.replace(".git", "").split("/")[-1]
+        self.save_dir_init(save_dir)
+
+    def get(self):
+        self.temp_dir = tempfile.mkdtemp()
+        with ChangeDir(self.temp_dir):
+            self._checkout_project(project=self.project, url=self.url, commit=self.commit)
+            tar_path = self._tar_project(project=self.project)
+            return tar_path
+
+    def get_name_version(self):
+        return (self.project, None)
+
+    def _checkout_project(self, project, url, commit):
+        subprocess.check_call([
+            "git",
+            "clone",
+            url,
+        ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        os.chdir(project)
+        subprocess.check_call([
+            "git",
+            "checkout",
+            "-f",
+            commit,
+        ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+    def _tar_project(self, project):
+        tar_path = os.path.join(self.save_dir, f"{project}.tar.gz")
+        git_archive_cmd = [
+            "git",
+            "archive",
+            "--output",
+            tar_path,
+            "--prefix",
+            f"{project}/",
+            "HEAD",
+        ]
+        subprocess.check_call(git_archive_cmd)
+        return tar_path

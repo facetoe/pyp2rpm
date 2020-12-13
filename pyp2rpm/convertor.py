@@ -47,13 +47,14 @@ class Convertor(object):
                  distro=settings.DEFAULT_DISTRO,
                  base_python_version=settings.DEFAULT_PYTHON_VERSION,
                  python_versions=[],
-                 rpm_name=None, proxy=None, venv=True, autonc=False):
+                 rpm_name=None, proxy=None, venv=True, autonc=False, git_commit=None):
         self.package = package
         self.version = version
         self.prerelease = prerelease
         self.save_dir = save_dir
         self.base_python_version = base_python_version
         self.python_versions = list(python_versions)
+        self.git_commit = git_commit
         self.template = template
         self.distro = distro
         if not self.template.endswith('.spec'):
@@ -144,7 +145,8 @@ class Convertor(object):
         self.name, self.version = self.getter.get_name_version()
 
         self.local_file = local_file
-        data = self.metadata_extractor.extract_data(self.client)
+        client = self.client if self.git_commit is None else None
+        data = self.metadata_extractor.extract_data(client=client, commit=self.git_commit)
         logger.debug("Extracted metadata:")
         logger.debug(pprint.pformat(data.data))
         self.merge_versions(data)
@@ -184,7 +186,12 @@ class Convertor(object):
             NoSuchPackageException if the package is unknown on PyPI
         """
         if not hasattr(self, '_getter'):
-            if not self.pypi:
+            if self.package.endswith(".git"):
+                self._getter = package_getters.GitPackageGetter(
+                    url=self.package,
+                    commit=self.git_commit,
+                )
+            elif not self.pypi:
                 self._getter = package_getters.LocalFileGetter(
                     self.package,
                     self.save_dir)

@@ -136,11 +136,15 @@ class SclizeOption(click.Option):
               'a standardized name in dependencies declaration ('
               'default: disabled).',
               default=None)
+@click.option('--git-commit',
+              help="When building from a git url, checkout this commit before building the package",
+              default=None)
 @click.option('--sclize',
               help='Convert tags and macro definitions to SCL-style using '
               '`spec2scl` module. NOTE: SCL related options can be provided '
               'alongside this option.',
               is_flag=True)
+@click.option("--verbose", is_flag=True)
 # SCL related options
 @click.option('--no-meta-runtime-dep',
               cls=SclizeOption,
@@ -172,7 +176,7 @@ class SclizeOption(click.Option):
               metavar='FILE_NAME')
 @click.argument('package', nargs=1)
 def main(package, v, prerelease, d, s, r, proxy, srpm, p, b, o, t, venv, autonc,
-         sclize, **scl_kwargs):
+         sclize, git_commit, verbose, **scl_kwargs):
     """Convert PyPI package to RPM specfile or SRPM.
 
     \b
@@ -194,8 +198,13 @@ def main(package, v, prerelease, d, s, r, proxy, srpm, p, b, o, t, venv, autonc,
                                "-b/-p to set python versions.".format(t))
 
     logger = logging.getLogger(__name__)
-
+    if verbose:
+        logger.setLevel(logging.DEBUG)
+        logging.basicConfig()
     logger.info('Pyp2rpm initialized.')
+
+    if not git_commit and package.endswith(".git"):
+        raise click.UsageError("Commit must be specified if using git url")
 
     convertor = Convertor(package=package,
                           version=v,
@@ -208,7 +217,8 @@ def main(package, v, prerelease, d, s, r, proxy, srpm, p, b, o, t, venv, autonc,
                           rpm_name=r,
                           proxy=proxy,
                           venv=venv,
-                          autonc=autonc)
+                          autonc=autonc,
+                          git_commit=git_commit)
 
     logger.debug(
         'Convertor: {0} created. Trying to convert.'.format(convertor))

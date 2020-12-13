@@ -41,6 +41,8 @@ class extract_dist(Command):
             self.metadata[attr] = to_str(
                 getattr(self.distribution.metadata, attr, None))
 
+        self.metadata["version"] = getattr(self.distribution.metadata, "version", None)
+
         self.metadata['classifiers'] = to_list(
             getattr(self.distribution.metadata, 'classifiers', []))
 
